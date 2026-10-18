@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f3a63">
+<title>Meteo · previsión a 7 días</title>
+<style>
+:root{--bg:#edf1f5;--card:#fff;--ink:#14253a;--mut:#667a8e;--line:#dde5ee;--hd:#0f3a63;--warm:#e4572e;--cold:#2f86d6;--rain:#2a7bd0;--snow:#7cc9ee;--night:rgba(15,58,99,.08)}
+@media(prefers-color-scheme:dark){:root{--bg:#0b131c;--card:#13212f;--ink:#e7eef6;--mut:#8da1b5;--line:#22354a;--hd:#0a2641;--night:rgba(0,0,0,.3);--rain:#4a9be8}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--hd);color:#fff;position:sticky;top:0;z-index:9;padding:10px 14px}
+.wrap{max-width:1040px;margin:auto}
+.top{display:flex;gap:10px;align-items:center}
+.logo{font-weight:800;font-size:19px}.logo b{color:#ff8a5c}
+.sb{position:relative;flex:1}
+input{width:100%;padding:9px 12px;border-radius:8px;border:0;font:inherit;background:rgba(255,255,255,.14);color:#fff}
+input::placeholder{color:#c5d5e6}
+input:focus-visible,button:focus-visible{outline:2px solid #ff8a5c}
+#res{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;list-style:none;background:var(--card);color:var(--ink);border-radius:8px;box-shadow:0 8px 24px #0005;overflow:hidden}
+#res li{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+#res li:hover{background:var(--bg)}#res small{color:var(--mut)}
+button{border:0;border-radius:8px;background:rgba(255,255,255,.14);color:#fff;font-size:18px;padding:7px 11px;cursor:pointer}
+main{padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 10px;font-size:16px}
+#pl{font-size:22px;font-weight:700;margin-bottom:10px}
+.now{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.big{font-size:64px;font-weight:300;line-height:1}.ic{font-size:56px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;flex:1}
+.kv div{font-size:12px;color:var(--mut)}.kv b{display:block;font-size:16px;color:var(--ink);font-weight:600}
+.d{display:grid;grid-template-columns:70px 30px 34px 1fr 34px 58px;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.d:first-child{border:0}
+.t{font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.rg{position:relative;height:8px;background:var(--line);border-radius:4px}
+.rg i{position:absolute;top:0;bottom:0;border-radius:4px;background:linear-gradient(90deg,var(--cold),var(--warm))}
+.sc{overflow-x:auto}.sc svg{min-width:720px;width:100%;display:block}
+svg text{fill:var(--mut);font-size:11px}
+.cur{display:none}
+#ro{min-height:40px;font-size:13px;margin-bottom:6px}
+.leg{font-size:12px;color:var(--mut);margin:6px 0 0}
+#err{color:var(--warm);padding:0 0 10px}
+footer{text-align:center;color:var(--mut);font-size:12px;padding:6px 14px 24px}footer a{color:inherit}
+@media(max-width:560px){.d{grid-template-columns:56px 26px 30px 1fr 30px 50px;gap:6px}.big{font-size:52px}}
+</style>
+</head>
+<body>
+<header><div class="wrap top"><span class="logo">meteo<b>.</b></span><div class="sb"><input id="q" placeholder="Buscar un lugar" autocomplete="off" aria-label="Buscar un lugar"><ul id="res"></ul></div><button id="gps" title="Usar mi ubicación" aria-label="Usar mi ubicación">📍</button></div></header>
+<main class="wrap">
+<div id="err"></div>
+<div class="card"><div id="pl"></div><div class="now" id="now"></div></div>
+<div class="card"><h2>Próximos 7 días</h2><div id="days"></div></div>
+<div class="card"><h2>Meteograma</h2><div id="ro">Toca o pasa el ratón por el gráfico para ver los valores de cada hora.</div>
+<div class="sc" id="c1"></div>
+<p class="leg">Línea: temperatura. Barras: precipitación por hora (azul lluvia, celeste nieve). Franja gris superior: nubosidad. Fondo oscuro: noche.</p></div>
+<div class="card"><h2>Viento</h2><div class="sc" id="c2"></div><p class="leg">Línea azul: viento medio. Línea discontinua: ráfagas. Las flechas indican hacia dónde sopla.</p></div>
+<div class="card"><h2>Isoterma de 0 °C</h2><div class="sc" id="c3"></div><p class="leg">Altitud a la que la temperatura baja de 0 °C. La línea punteada marca la altitud del lugar.</p></div>
+</main>
+<footer>Datos: <a href="https://open-meteo.com">Open-Meteo.com</a> (CC BY 4.0)</footer>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const W={0:['☀️','Despejado'],1:['🌤️','Poco nuboso'],2:['⛅','Intervalos'],3:['☁️','Cubierto'],45:['🌫️','Niebla'],48:['🌫️','Niebla engelante'],51:['🌦️','Llovizna'],53:['🌦️','Llovizna'],55:['🌧️','Llovizna'],56:['🌧️','Llovizna helada'],57:['🌧️','Llovizna helada'],61:['🌦️','Lluvia débil'],63:['🌧️','Lluvia'],65:['🌧️','Lluvia fuerte'],66:['🌧️','Lluvia helada'],67:['🌧️','Lluvia helada'],71:['🌨️','Nieve débil'],73:['🌨️','Nieve'],75:['❄️','Nieve fuerte'],77:['🌨️','Nieve granulada'],80:['🌦️','Chubascos'],81:['🌧️','Chubascos'],82:['⛈️','Chubascos fuertes'],85:['🌨️','Chubascos de nieve'],86:['❄️','Chubascos de nieve'],95:['⛈️','Tormenta'],96:['⛈️','Tormenta y granizo'],99:['⛈️','Tormenta y granizo']};
+const wx=c=>W[c]||['❓','—'],DIR=['N','NE','E','SE','S','SO','O','NO'],dir=d=>DIR[Math.round(d/45)%8];
+let D,tm,P;
+try{P=JSON.parse(localStorage.getItem('place'))}catch{}
+P=P||{name:'Vielha',lat:42.7016,lon:0.7974};
+const hh=i=>new Date(D.hourly.time[i]),dl=i=>hh(i).toLocaleDateString('es',{weekday:'short',day:'numeric'});
+
+async function load(){
+ $('#pl').textContent=P.name;
+ try{
+  const q='current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,precipitation,snowfall,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,freezing_level_height,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset,uv_index_max&timezone=auto&forecast_days=7';
+  D=await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${P.lat}&longitude=${P.lon}&${q}`)).json();
+  if(D.error)throw 0;
+  draw();$('#err').textContent='';
+ }catch(e){$('#err').textContent='No se pudo cargar la previsión. Comprueba la conexión e inténtalo de nuevo.'}
+}
+
+function draw(){
+ const c=D.current,d=D.daily,h=D.hourly,[ic,tx]=wx(c.weather_code),hm=s=>s.slice(11,16),r=Math.round;
+ $('#now').innerHTML=`<div class="ic">${ic}</div><div><div class="big">${r(c.temperature_2m)}°</div><div>${tx}</div></div><div class="kv"><div>Sensación<b>${r(c.apparent_temperature)}°</b></div><div>Mín. y máx. de hoy<b>${r(d.temperature_2m_min[0])}° / ${r(d.temperature_2m_max[0])}°</b></div><div>Viento<b>${r(c.wind_speed_10m)} km/h ${dir(c.wind_direction_10m)}</b></div><div>Humedad<b>${c.relative_humidity_2m}%</b></div><div>Sale y se pone el sol<b>${hm(d.sunrise[0])} / ${hm(d.sunset[0])}</b></div><div>Índice UV<b>${r(d.uv_index_max[0])}</b></div><div>Altitud<b>${r(D.elevation)} m</b></div></div>`;
+ const gn=Math.min(...d.temperature_2m_min),gx=Math.max(...d.temperature_2m_max),sp=gx-gn||1;
+ $('#days').innerHTML=d.time.map((t,i)=>{
+  const a=d.temperature_2m_min[i],b=d.temperature_2m_max[i],[e,n]=wx(d.weather_code[i]),p=d.precipitation_sum[i];
+  return `<div class="d" title="${n}"><span>${i?new Date(t+'T12:00').toLocaleDateString('es',{weekday:'short',day:'numeric'}):'Hoy'}</span><span style="font-size:22px">${e}</span><span class="t">${r(a)}°</span><div class="rg"><i style="left:${(a-gn)/sp*100}%;right:${100-(b-gn)/sp*100}%"></i></div><span class="t">${r(b)}°</span><span class="t" style="color:var(--rain)">${p>=.1?p.toFixed(1)+' mm':''}</span></div>`}).join('');
+ const tp=h.temperature_2m,g=h.wind_gusts_10m,fl=h.freezing_level_height.map(v=>v??0);
+ const mn=Math.floor(Math.min(...tp))-1,mx=mn+4*Math.ceil((Math.max(...tp)+1-mn)/4);
+ const gm=Math.max(20,Math.ceil(Math.max(...g)/20)*20);
+ const f0=Math.floor(Math.min(...fl)/1000)*1000,f1=Math.max(Math.ceil(Math.max(...fl)/1000)*1000,f0+1000);
+ $('#c1').innerHTML=chart({h:300,min:mn,max:mx,unit:'°C',zero:1,cloud:1,grad:1,bars:{v:h.precipitation,max:Math.max(3,...h.precipitation),col:i=>h.snowfall[i]>0?'var(--snow)':'var(--rain)'},lines:[{v:tp,col:'url(#g)',w:2.5}]});
+ $('#c2').innerHTML=chart({h:190,min:0,max:gm,unit:'km/h',arrows:1,lines:[{v:g,col:'var(--mut)',dash:1,w:1.5},{v:h.wind_speed_10m,col:'var(--rain)',w:2.5}]});
+ $('#c3').innerHTML=chart({h:170,min:f0,max:f1,unit:'m',ref:D.elevation,lines:[{v:fl,col:'var(--cold)',w:2.5}]});
+ bind();
+}
+
+function chart(o){
+ const H=o.h,L=42,pw=946,T=26,ph=H-T-20,h=D.hourly,N=h.time.length;
+ const X=i=>L+pw*i/(N-1),Y=v=>T+ph*(1-(v-o.min)/(o.max-o.min)),bw=pw/N;
+ let s=`<svg viewBox="0 0 1000 ${H}">`;
+ if(o.grad){const f=Math.max(0,Math.min(1,o.max/(o.max-o.min)));s+=`<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" y1="${T}" x2="0" y2="${T+ph}"><stop offset="0" stop-color="var(--warm)"/><stop offset="${f}" stop-color="var(--warm)"/><stop offset="${f}" stop-color="var(--cold)"/><stop offset="1" stop-color="var(--cold)"/></linearGradient></defs>`}
+ for(let i=0,j;i<N;i=j){j=i;while(j<N&&h.is_day[j]==h.is_day[i])j++;if(!h.is_day[i])s+=`<rect x="${X(i)}" y="${T}" width="${X(Math.min(j,N-1))-X(i)}" height="${ph}" fill="var(--night)"/>`}
+ for(let k=0;k<=4;k++){const v=o.min+(o.max-o.min)*k/4,y=Y(v);s+=`<line x1="${L}" x2="${L+pw}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L-6}" y="${y+4}" text-anchor="end">${Math.round(v)}</text>`}
+ for(let k=0;k<7;k++){const x=X(k*24);s+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${T+ph}" stroke="var(--line)"/><text x="${X(k*24+12)}" y="${H-5}" text-anchor="middle">${dl(k*24+12)}</text>`}
+ s+=`<text x="4" y="${H-5}">${o.unit}</text>`;
+ if(o.zero&&o.min<0&&o.max>0)s+=`<line x1="${L}" x2="${L+pw}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--cold)" stroke-dasharray="3 3"/>`;
+ if(o.ref>=o.min&&o.ref<=o.max)s+=`<line x1="${L}" x2="${L+pw}" y1="${Y(o.ref)}" y2="${Y(o.ref)}" stroke="var(--mut)" stroke-dasharray="2 4" stroke-width="1.5"/>`;
+ if(o.bars)o.bars.v.forEach((v,i)=>{if(v>0){const k=Math.min(1,v/o.bars.max)*ph*.4;s+=`<rect x="${X(i)-bw/2}" y="${T+ph-k}" width="${bw}" height="${k}" fill="${o.bars.col(i)}" opacity=".85"/>`}});
+ if(o.cloud){s+=`<text x="${L-6}" y="13" text-anchor="end">nubes</text>`;h.cloud_cover.forEach((v,i)=>s+=`<rect x="${X(i)-bw/2}" y="4" width="${bw+.5}" height="10" fill="var(--mut)" opacity="${v/100*.8}"/>`)}
+ if(o.arrows)for(let i=1;i<N;i+=3)s+=`<path d="M0,-7L5,6L0,3L-5,6Z" transform="translate(${X(i)} 14) rotate(${h.wind_direction_10m[i]+180})" fill="var(--mut)"/>`;
+ o.lines.forEach(l=>{s+=`<path d="${l.v.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1)).join('')}" fill="none" stroke="${l.col}" stroke-width="${l.w}" stroke-linejoin="round"${l.dash?' stroke-dasharray="4 3"':''}/>`});
+ return s+`<line class="cur" y1="${T}" y2="${T+ph}" stroke="var(--ink)" opacity=".5"/></svg>`;
+}
+
+function bind(){
+ const h=D.hourly,N=h.time.length,S=[...document.querySelectorAll('.sc svg')],r=Math.round;
+ S.forEach(v=>v.onpointermove=v.onpointerdown=e=>{
+  const b=v.getBoundingClientRect(),i=Math.max(0,Math.min(N-1,r(((e.clientX-b.left)/b.width*1000-42)/946*(N-1)))),x=42+946*i/(N-1);
+  S.forEach(s=>{const l=s.querySelector('.cur');l.setAttribute('x1',x);l.setAttribute('x2',x);l.style.display='block'});
+  $('#ro').innerHTML=`<b>${hh(i).toLocaleString('es',{weekday:'short',hour:'2-digit',minute:'2-digit'})}</b>: ${h.temperature_2m[i].toFixed(1)} °C, ${h.precipitation[i]} mm${h.snowfall[i]>0?' ('+h.snowfall[i]+' cm de nieve)':''}, nubes ${h.cloud_cover[i]}%, viento ${r(h.wind_speed_10m[i])} km/h ${dir(h.wind_direction_10m[i])} con ráfagas de ${r(h.wind_gusts_10m[i])}, 0 °C a ${r(h.freezing_level_height[i]??0)} m`;
+ });
+}
+
+function set(p){P=p;try{localStorage.setItem('place',JSON.stringify(p))}catch{}$('#res').innerHTML='';$('#q').value='';load()}
+$('#q').oninput=e=>{
+ clearTimeout(tm);const v=e.target.value.trim();
+ if(v.length<2){$('#res').innerHTML='';return}
+ tm=setTimeout(async()=>{try{
+  const r=(await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=6&language=es&name=${encodeURIComponent(v)}`)).json()).results||[];
+  $('#res').innerHTML=r.map((p,i)=>`<li data-i="${i}">${esc(p.name)} <small>${esc([p.admin1,p.country].filter(Boolean).join(', '))}${p.elevation!=null?' · '+Math.round(p.elevation)+' m':''}</small></li>`).join('');
+  $('#res').onclick=ev=>{const li=ev.target.closest('li');if(li){const p=r[li.dataset.i];set({name:p.name,lat:p.latitude,lon:p.longitude})}};
+ }catch{}},300)};
+$('#gps').onclick=()=>navigator.geolocation&&navigator.geolocation.getCurrentPosition(g=>set({name:'Mi ubicación',lat:g.coords.latitude,lon:g.coords.longitude}));
+load();
+</script>
+</body>
+</html>
